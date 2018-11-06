@@ -105,6 +105,7 @@ class User
 end
 
 class Reply
+  attr_reader :id, :subject_question_id ,:parent_reply, :writer,:body
   def self.find_by_id(id)
     reply = QuestionsDatabase.instance.execute(<<-SQL, id)
     SELECT
@@ -117,6 +118,32 @@ class Reply
     return nil unless reply.length > 0
 
     Reply.new(reply.first)
+  end
+
+  def author
+    User.find_by_id(self.writer)
+  end
+
+  def question
+    Question.find_by_id(self.subject_question_id)
+  end
+
+  def parent_reply
+    Reply.find_by_id(@parent_reply)
+  end
+
+  def child_replies
+    reply = QuestionsDatabase.instance.execute(<<-SQL, @id)
+      SELECT
+        *
+      FROM
+        replies
+      WHERE
+        parent_reply = ?
+    SQL
+    
+    return nil if reply.length == 0
+    reply.map {|single_reply| Reply.new(single_reply)}
   end
 
   def initialize(options)

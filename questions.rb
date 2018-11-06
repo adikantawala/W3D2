@@ -13,7 +13,8 @@ end
 
 
 class Question
-  def self.find_by_id
+  attr_reader :id, :title, :body, :associated_author
+  def self.find_by_id(id)
     question = QuestionsDatabase.instance.execute(<<-SQL, id)
       SELECT
         *
@@ -28,6 +29,26 @@ class Question
     Question.new(question.first)
   end
 
+  def author
+    User.find_by_id(self.associated_author)
+  end
+  def replies
+    Reply.find_by_question_id(self.id)
+  end
+
+  def self.find_by_author_id(author_id)
+    question = QuestionsDatabase.instance.execute(<<-SQL, author_id)
+      SELECT
+        *
+      FROM
+        questions
+      WHERE
+        associated_author = ?
+    SQL
+    return nil if question.length == 0
+    question.map{|single_q| Question.new(single_q)}
+  end
+
   def initialize(options)
     @id = options['id']
     @title = options['title']
@@ -37,7 +58,9 @@ class Question
 end
 
 class User
-  def self.find_by_id
+  attr_reader :id, :fname, :lname
+
+  def self.find_by_id(id)
     user = QuestionsDatabase.instance.execute(<<-SQL, id)
     SELECT
       *
@@ -52,7 +75,7 @@ class User
     User.new(user.first)
   end
 
-  def self.find_by_name
+  def self.find_by_name(fname,lname)
     user = QuestionsDatabase.instance.execute(<<-SQL, fname, lname)
     SELECT
       *
@@ -72,10 +95,17 @@ class User
     @fname = options['fname']
     @lname = options['lname']
   end
+
+  def authored_questions
+    Question.find_by_author_id(self.id)
+  end
+  def authored_replies
+    Reply.find_by_user_id(self.id)
+  end
 end
 
 class Reply
-  def self.find_by_id
+  def self.find_by_id(id)
     reply = QuestionsDatabase.instance.execute(<<-SQL, id)
     SELECT
       *
@@ -96,10 +126,40 @@ class Reply
     @writer = options['writer']
     @body = options['body']
   end
+
+  def self.find_by_user_id(user_id)
+    replies = QuestionsDatabase.instance.execute(<<-SQL, user_id)
+      SELECT
+        *
+      FROM
+        replies
+      WHERE
+        writer = ?
+    SQL
+
+    return nil if replies.length == 0
+
+    replies.map {|single_reply| Reply.new(single_reply)}
+  end
+
+  def self.find_by_question_id(question_id)
+    replies = QuestionsDatabase.instance.execute(<<-SQL, question_id)
+      SELECT
+        *
+      FROM
+        replies
+      WHERE
+        subject_question_id = ?
+    SQL
+
+    return nil if replies.length == 0
+
+    replies.map {|single_reply| Reply.new(single_reply)}
+  end
 end
 
 class QuestionsLike
-  def self.find_by_id
+  def self.find_by_id(id)
     questions = QuestionsDatabase.instance.execute(<<-SQL, id)
     SELECT
       *
@@ -121,12 +181,12 @@ class QuestionsLike
 end
 
 class QuestionsFollow
-  def self.find_by_id
+  def self.find_by_id(id)
     questions = QuestionsDatabase.instance.execute(<<-SQL, id)
     SELECT
       *
     FROM
-      questions_follows
+      question_follows
     WHERE
       id = ?
     SQL

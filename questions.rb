@@ -29,6 +29,10 @@ class Question
     Question.new(question.first)
   end
 
+  def followers
+    QuestionsFollow.followers_for_question_id(@id)
+  end
+
   def author
     User.find_by_id(self.associated_author)
   end
@@ -73,6 +77,9 @@ class User
     return nil unless user.length > 0
 
     User.new(user.first)
+  end
+  def followed_questions
+    QuestionsFollow.followed_questions_for_user_id(@id)
   end
 
   def self.find_by_name(fname,lname)
@@ -141,7 +148,7 @@ class Reply
       WHERE
         parent_reply = ?
     SQL
-    
+
     return nil if reply.length == 0
     reply.map {|single_reply| Reply.new(single_reply)}
   end
@@ -222,9 +229,46 @@ class QuestionsFollow
     QuestionsFollow.new(questions.first)
   end
 
+  def self.followed_questions_for_user_id(users_id)
+    questions = QuestionsDatabase.instance.execute(<<-SQL, users_id)
+    SELECT
+      questions.id,
+      questions.title,
+      questions.body,
+      questions.associated_author
+    FROM
+      question_follows
+    JOIN
+      questions
+    ON question_follows.questions_id = questions.id
+    WHERE
+      users_id = ?
+    SQL
+    return nil if questions.empty?
+    questions.map {|q| Question.new(q)}
+  end
+
   def initialize(options)
     @id = options['id']
     @users_id = options['users_id']
     @questions_id = options['questions_id']
+  end
+
+  def self.followers_for_question_id(question_id)
+    users = QuestionsDatabase.instance.execute(<<-SQL, question_id)
+      SELECT
+        users.id,
+        users.fname,
+        users.lname
+      FROM
+        question_follows
+      JOIN
+        users
+      ON users.id = question_follows.users_id
+      WHERE
+        questions_id = ?
+    SQL
+    return nil unless users.length > 0
+    users.map {|user| User.new(user)}
   end
 end

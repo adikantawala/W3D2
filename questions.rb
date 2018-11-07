@@ -11,6 +11,7 @@ class QuestionsDatabase < SQLite3::Database
   end
 end
 
+####################################################################
 
 class Question
   attr_reader :id, :title, :body, :associated_author
@@ -27,6 +28,10 @@ class Question
     return nil unless question.length > 0
 
     Question.new(question.first)
+  end
+
+  def self.most_liked(n)
+    QuestionsLike.most_liked_questions(n)
   end
 
   def likers
@@ -48,6 +53,7 @@ class Question
   def author
     User.find_by_id(self.associated_author)
   end
+
   def replies
     Reply.find_by_question_id(self.id)
   end
@@ -73,6 +79,9 @@ class Question
   end
 end
 
+
+
+####################################################################
 class User
   attr_reader :id, :fname, :lname
 
@@ -89,6 +98,20 @@ class User
     return nil unless user.length > 0
 
     User.new(user.first)
+  end
+
+  def average_karma
+    user = QuestionsDatabase.instance.execute(<<-SQL,@id)
+      SELECT
+        CAST(COUNT(ql.question_id)AS FLOAT) / COUNT(DISTINCT(questions.title))
+      FROM
+        questions
+      LEFT JOIN
+        questions_like AS ql on ql.question_id = questions.id
+      WHERE
+        questions.associated_author = ?;
+      SQL
+      return user.first.values.first
   end
 
   def liked_questions
@@ -127,6 +150,11 @@ class User
     Reply.find_by_user_id(self.id)
   end
 end
+
+
+
+
+####################################################################
 
 class Reply
   attr_reader :id, :subject_question_id ,:parent_reply, :writer,:body
@@ -210,7 +238,7 @@ class Reply
 end
 
 
-
+####################################################################
 
 class QuestionsLike
   def self.find_by_id(id)
@@ -283,10 +311,34 @@ class QuestionsLike
     @question_id = options['question_id']
     @user_id = options['user_id']
   end
+
+  def self.most_liked_questions(n)
+    questions = QuestionsDatabase.instance.execute(<<-SQL, n)
+      SELECT
+        questions.id,
+        questions.title,
+        questions.body,
+        questions.associated_author
+      FROM
+        questions_like
+      JOIN
+        questions
+      ON
+        questions_like.question_id = questions.id
+      GROUP BY
+        questions_like.question_id
+      ORDER BY
+        COUNT(questions_like.user_id) DESC
+      LIMIT ?;
+    SQL
+
+    return nil if questions.empty?
+    questions.map {|q| Question.new(q)}
+  end
 end
 
 
-
+####################################################################
 
 
 class QuestionsFollow

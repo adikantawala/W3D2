@@ -100,6 +100,7 @@ class User
     User.new(user.first)
   end
 
+
   def average_karma
     user = QuestionsDatabase.instance.execute(<<-SQL,@id)
       SELECT
